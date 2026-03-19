@@ -961,13 +961,13 @@ function downloadLog() {
   const logEl  = document.getElementById('pt-log');
   const errEl  = document.getElementById('pt-err-list');
   let txt = `BackupManager Log — ${name}\n${new Date().toLocaleString()}\n\n`;
-  txt += `Gekopieerd : ${document.getElementById('pt-copied')?.textContent  || 0}\n`;
-  txt += `Overgeslagen: ${document.getElementById('pt-skipped')?.textContent || 0}\n`;
-  txt += `Verwijderd : ${document.getElementById('pt-deleted')?.textContent  || 0}\n`;
-  txt += `Fouten     : ${document.getElementById('pt-err-cnt')?.textContent  || 0}\n\n`;
-  if (logEl) { txt += '── Activiteiten ──\n'; for (const el of logEl.children) txt += el.textContent + '\n'; }
+  txt += `${t('Gekopieerd','Copied')}    : ${document.getElementById('pt-copied')?.textContent  || 0}\n`;
+  txt += `${t('Overgeslagen','Skipped')} : ${document.getElementById('pt-skipped')?.textContent || 0}\n`;
+  txt += `${t('Verwijderd','Deleted')}   : ${document.getElementById('pt-deleted')?.textContent  || 0}\n`;
+  txt += `${t('Fouten','Errors')}        : ${document.getElementById('pt-err-cnt')?.textContent  || 0}\n\n`;
+  if (logEl) { txt += `── ${t('Activiteiten','Activity')} ──\n`; for (const el of logEl.children) txt += el.textContent + '\n'; }
   if (errEl && errEl.children.length) {
-    txt += '\n── Fouten (volledig) ──\n';
+    txt += `\n── ${t('Fouten (volledig)','Errors (full)')} ──\n`;
     for (const el of errEl.children) txt += el.textContent + '\n';
   }
   const a = Object.assign(document.createElement('a'), {
@@ -1061,7 +1061,8 @@ function previewJob(id) {
       if (res.to_copy > res.preview_files.length) {
         const el = document.createElement('span');
         el.className = 'pt-line'; el.style.color = 'var(--text3)';
-        el.textContent = `… en nog ${(res.to_copy - res.preview_files.length).toLocaleString()} meer`; logEl.appendChild(el);
+        el.textContent = t(`… en nog ${(res.to_copy - res.preview_files.length).toLocaleString()} meer`,
+          `… and ${(res.to_copy - res.preview_files.length).toLocaleString()} more`); logEl.appendChild(el);
       }
     }
     const fb = document.getElementById('pt-filter-bar'); if (fb) fb.style.display = 'none';
