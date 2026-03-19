@@ -100,7 +100,7 @@ def is_excluded(rel_path, patterns):
     return False
 
 # ── Core backup engine ─────────────────────────────────────────────────────
-def run_backup(job, dry_run=False, on_progress=None):
+def run_backup(job, dry_run=False, on_progress=None, preview_only=False):
     src          = job["source"]
     dst          = job["destination"]
     on_missing   = job.get("on_missing",  "skip")
@@ -121,29 +121,20 @@ def run_backup(job, dry_run=False, on_progress=None):
         msg = L(f"Bronpad bestaat niet: {src}", f"Source path does not exist: {src}")
         log.error(msg); results["errors"].append(msg); return results
 
-    # Pre-count total files so the frontend can show a real progress bar
-    total_files = 0
-    if on_progress:
-        if os.path.isfile(src):
-            total_files = 1
-        elif os.path.isdir(src):
-            for _r, _d, _f in os.walk(src):
-                total_files += len(_f)
-    _processed = [0]
-
-    def _notify(action, frel, message=""):
-        _processed[0] += 1
+    def _notify(phase, action, frel="", message="", processed=0, total=0, **kw):
         if on_progress:
-            on_progress({"action": action, "file": frel, "message": message,
-                         "processed": _processed[0], "total": total_files,
+            on_progress({"phase": phase, "action": action, "file": frel,
+                         "message": message, "processed": processed, "total": total,
                          "copied":  results["copied"],  "skipped": results["skipped"],
                          "deleted": results["deleted"], "excluded": results["excluded"],
-                         "error_count": len(results["errors"])})
+                         "error_count": len(results["errors"]), **kw})
 
-    if not dry_run:
+    if not dry_run and not preview_only:
         os.makedirs(dst, exist_ok=True)
 
+    # ── Phase 1: SCAN ──────────────────────────────────────────────────────
     src_files = {}
+    scan_n    = 0
     if os.path.isfile(src):
         src_files[os.path.basename(src)] = src
     else:
@@ -153,48 +144,47 @@ def run_backup(job, dry_run=False, on_progress=None):
             for fname in files:
                 abs_path = os.path.join(root_dir, fname)
                 rel_path = os.path.relpath(abs_path, src)
+                scan_n += 1
                 if is_excluded(rel_path, excludes):
                     results["excluded"] += 1
                     results["log"].append(L(f"[uitgesloten] {rel_path}", f"[excluded] {rel_path}"))
-                    _notify("excluded", rel_path)
-                    continue
-                src_files[rel_path] = abs_path
+                else:
+                    src_files[rel_path] = abs_path
+                if scan_n % 1000 == 0:
+                    _notify("scan", "scanning", rel_path, processed=scan_n)
+    _notify("scan", "done", processed=scan_n or len(src_files), total=scan_n or len(src_files))
 
-    for rel, abs_src in src_files.items():
+    # ── Phase 2: COMPARE ───────────────────────────────────────────────────
+    to_copy   = []
+    to_delete = []
+    cmp_total = len(src_files)
+
+    for i, (rel, abs_src) in enumerate(src_files.items()):
         abs_dst = os.path.join(dst, rel)
-        try:
-            if os.path.exists(abs_dst):
-                if on_duplicate == "skip":
-                    results["skipped"] += 1
-                    results["log"].append(L(f"[overgeslagen] {rel}", f"[skipped] {rel}"))
-                    _notify("skipped", rel)
-                    continue
-                elif on_duplicate == "overwrite_if_newer":
-                    if os.path.getmtime(abs_src) <= os.path.getmtime(abs_dst):
-                        results["skipped"] += 1
-                        results["log"].append(L(f"[ongewijzigd] {rel}", f"[unchanged] {rel}"))
-                        _notify("skipped", rel)
-                        continue
-                elif on_duplicate == "overwrite_if_different":
-                    if file_hash(abs_src) == file_hash(abs_dst):
-                        results["skipped"] += 1
-                        results["log"].append(L(f"[identiek] {rel}", f"[identical] {rel}"))
-                        _notify("skipped", rel)
-                        continue
-
-            if not dry_run:
-                os.makedirs(os.path.dirname(abs_dst), exist_ok=True)
-                shutil.copy2(abs_src, abs_dst)
-            results["copied"] += 1
-            pfx = "[DRY-RUN] " if dry_run else ""
-            results["log"].append(L(f"{pfx}[gekopieerd] {rel}", f"{pfx}[copied] {rel}"))
-            _notify("copied", rel)
-        except Exception as e:
-            msg = L(f"Fout bij {rel}: {e}", f"Error on {rel}: {e}")
-            results["errors"].append(msg)
-            results["log"].append(L(f"[FOUT] {rel}: {e}", f"[ERROR] {rel}: {e}"))
-            log.error(msg)
-            _notify("error", rel, str(e))
+        needs_copy = False
+        if not os.path.exists(abs_dst):
+            needs_copy = True
+        elif on_duplicate == "skip":
+            results["skipped"] += 1
+            results["log"].append(L(f"[overgeslagen] {rel}", f"[skipped] {rel}"))
+        elif on_duplicate == "overwrite_if_newer":
+            if os.path.getmtime(abs_src) > os.path.getmtime(abs_dst):
+                needs_copy = True
+            else:
+                results["skipped"] += 1
+                results["log"].append(L(f"[ongewijzigd] {rel}", f"[unchanged] {rel}"))
+        elif on_duplicate == "overwrite_if_different":
+            if file_hash(abs_src) != file_hash(abs_dst):
+                needs_copy = True
+            else:
+                results["skipped"] += 1
+                results["log"].append(L(f"[identiek] {rel}", f"[identical] {rel}"))
+        else:
+            needs_copy = True
+        if needs_copy:
+            to_copy.append((rel, abs_src, abs_dst))
+        if i % 1000 == 0 or i == cmp_total - 1:
+            _notify("compare", "comparing", rel, processed=i + 1, total=cmp_total)
 
     if on_missing == "delete_in_dst" and os.path.isdir(dst):
         for root_dir, dirs, files in os.walk(dst):
@@ -202,18 +192,52 @@ def run_backup(job, dry_run=False, on_progress=None):
                 abs_dst_f = os.path.join(root_dir, fname)
                 rel = os.path.relpath(abs_dst_f, dst)
                 if rel not in src_files:
-                    try:
-                        if not dry_run:
-                            os.remove(abs_dst_f)
-                        results["deleted"] += 1
-                        pfx = "[DRY-RUN] " if dry_run else ""
-                        results["log"].append(L(f"{pfx}[verwijderd] {rel}", f"{pfx}[deleted] {rel}"))
-                        _notify("deleted", rel)
-                    except Exception as e:
-                        msg = L(f"Verwijderen mislukt {rel}: {e}", f"Delete failed {rel}: {e}")
-                        results["errors"].append(msg)
-                        log.error(msg)
-                        _notify("error", rel, str(e))
+                    to_delete.append((rel, abs_dst_f))
+
+    _notify("compare", "done", processed=cmp_total, total=cmp_total,
+            to_copy=len(to_copy), to_delete=len(to_delete))
+
+    if preview_only:
+        results["finished"]        = datetime.now().isoformat()
+        results["to_copy"]         = len(to_copy)
+        results["to_delete"]       = len(to_delete)
+        results["preview_files"]   = [r for r, _, _ in to_copy[:200]]
+        results["preview_deletes"] = [r for r, _  in to_delete[:50]]
+        return results
+
+    # ── Phase 3: COPY ──────────────────────────────────────────────────────
+    copy_total = len(to_copy)
+    for i, (rel, abs_src, abs_dst) in enumerate(to_copy):
+        try:
+            if not dry_run:
+                os.makedirs(os.path.dirname(abs_dst), exist_ok=True)
+                shutil.copy2(abs_src, abs_dst)
+            results["copied"] += 1
+            pfx = "[DRY-RUN] " if dry_run else ""
+            results["log"].append(L(f"{pfx}[gekopieerd] {rel}", f"{pfx}[copied] {rel}"))
+            _notify("copy", "copied", rel, processed=i + 1, total=copy_total)
+        except Exception as e:
+            msg = L(f"Fout bij {rel}: {e}", f"Error on {rel}: {e}")
+            results["errors"].append(msg)
+            results["log"].append(L(f"[FOUT] {rel}: {e}", f"[ERROR] {rel}: {e}"))
+            log.error(msg)
+            _notify("copy", "error", rel, message=str(e), processed=i + 1, total=copy_total)
+
+    # ── Phase 4: DELETE ────────────────────────────────────────────────────
+    del_total = len(to_delete)
+    for i, (rel, abs_dst_f) in enumerate(to_delete):
+        try:
+            if not dry_run:
+                os.remove(abs_dst_f)
+            results["deleted"] += 1
+            pfx = "[DRY-RUN] " if dry_run else ""
+            results["log"].append(L(f"{pfx}[verwijderd] {rel}", f"{pfx}[deleted] {rel}"))
+            _notify("delete", "deleted", rel, processed=i + 1, total=del_total)
+        except Exception as e:
+            msg = L(f"Verwijderen mislukt {rel}: {e}", f"Delete failed {rel}: {e}")
+            results["errors"].append(msg)
+            log.error(msg)
+            _notify("delete", "error", rel, message=str(e), processed=i + 1, total=del_total)
 
     results["finished"] = datetime.now().isoformat()
     tag = L("TEST-RUN KLAAR" if dry_run else "BACKUP KLAAR",
@@ -308,10 +332,11 @@ class BackupHandler(BaseHTTPRequestHandler):
                             "log": get_log_file(), "version": "2.0"})
 
         elif parsed.path.startswith("/api/jobs/") and parsed.path.endswith("/stream"):
-            job_id = parsed.path.split("/")[3]
-            qs     = parse_qs(parsed.query)
-            dry    = qs.get("dry", ["0"])[0] == "1"
-            job    = next((j for j in config["jobs"] if j["id"] == job_id), None)
+            job_id  = parsed.path.split("/")[3]
+            qs      = parse_qs(parsed.query)
+            dry     = qs.get("dry",     ["0"])[0] == "1"
+            preview = qs.get("preview", ["0"])[0] == "1"
+            job     = next((j for j in config["jobs"] if j["id"] == job_id), None)
             if not job:
                 return self.send_json({"error": "job not found"}, 404)
             self.send_response(200)
@@ -333,12 +358,17 @@ class BackupHandler(BaseHTTPRequestHandler):
             _ts   = [time.time()]
 
             def on_progress(evt):
-                if evt["action"] in ("copied", "deleted", "error"):
-                    batch.append({"action": evt["action"], "file": evt["file"],
+                phase  = evt["phase"]
+                action = evt["action"]
+                if action in ("copied", "deleted", "error"):
+                    batch.append({"action": action, "file": evt["file"],
                                   "message": evt.get("message", "")})
-                now = time.time()
-                if evt["action"] == "error" or now - _ts[0] >= 0.3:
-                    sse("progress", {
+                now        = time.time()
+                phase_done = (action == "done")
+                if action == "error" or phase_done or now - _ts[0] >= 0.3:
+                    payload = {
+                        "phase":        phase,
+                        "action":       action,
                         "processed":    evt["processed"],
                         "total":        evt["total"],
                         "copied":       evt["copied"],
@@ -348,13 +378,17 @@ class BackupHandler(BaseHTTPRequestHandler):
                         "error_count":  evt["error_count"],
                         "current_file": evt["file"],
                         "batch":        list(batch[-30:]),
-                    })
+                    }
+                    if phase_done and "to_copy" in evt:
+                        payload["to_copy"]   = evt["to_copy"]
+                        payload["to_delete"] = evt["to_delete"]
+                    sse("progress", payload)
                     batch.clear()
                     _ts[0] = now
 
-            sse("start", {"job": job["name"], "dry_run": dry})
-            results = run_backup(job, dry_run=dry, on_progress=on_progress)
-            if not dry:
+            sse("start", {"job": job["name"], "dry_run": dry, "preview": preview})
+            results = run_backup(job, dry_run=dry, on_progress=on_progress, preview_only=preview)
+            if not dry and not preview:
                 cfg2 = load_config()
                 j2   = next((j for j in cfg2["jobs"] if j["id"] == job_id), None)
                 if j2:

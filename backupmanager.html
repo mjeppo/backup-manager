@@ -146,21 +146,39 @@ textarea{resize:vertical;min-height:72px;font-family:'IBM Plex Mono',monospace;f
 .rg .rnum{color:var(--green)}.rs .rnum{color:var(--text2)}.ra .rnum{color:var(--amber)}.rr .rnum{color:var(--red)}
 
 /* ── Progress terminal ── */
-.pt-wrap{border:1px solid var(--border);border-radius:8px;overflow:hidden;font-family:'IBM Plex Mono',monospace;font-size:12px}
-.pt-head{background:var(--bg3);padding:8px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);font-size:13px}
+.pt-wrap{border:1px solid var(--border);border-radius:8px;overflow:hidden;font-family:'IBM Plex Mono',monospace;font-size:12px;display:flex;flex-direction:column}
+.pt-head{background:var(--bg3);padding:7px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);font-size:13px;flex-shrink:0}
 .pt-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0}
 .pt-dot.idle{background:var(--text3);box-shadow:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 .pt-dot.live{animation:blink 1.2s infinite}
-.pt-status{margin-left:auto;font-size:11px;color:var(--text3)}
-.pt-progress{padding:10px 14px;border-bottom:1px solid var(--border)}
-.pt-bar{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.pt-actions{margin-left:auto;display:flex;gap:5px}
+.pt-act-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;font-family:inherit}
+.pt-act-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pt-phases{display:flex;align-items:center;gap:4px;padding:6px 12px;border-bottom:1px solid var(--border);font-size:11px;flex-shrink:0;flex-wrap:wrap}
+.pt-phase{padding:2px 8px;border-radius:10px;color:var(--text3)}
+.pt-phase.active{background:rgba(79,142,247,.15);color:var(--accent);font-weight:500}
+.pt-phase.done{color:var(--green)}
+.pt-sep{color:var(--border2)}
+.pt-progress{padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.pt-bar{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-bottom:5px}
 .pt-bar-fill{height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .35s,background .3s}
-.pt-cur{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pt-counters{display:flex;flex-wrap:wrap;gap:16px;padding:8px 14px;border-bottom:1px solid var(--border)}
-.pt-log{height:240px;overflow-y:auto;padding:8px 14px;line-height:1.8}
+.pt-cur{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.pt-counters{display:flex;flex-wrap:wrap;gap:14px;padding:7px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.pt-filter-bar{display:none;gap:5px;padding:6px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.pt-fbtn{background:none;border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:11px;font-family:inherit}
+.pt-fbtn.active{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.1)}
+.pt-log{flex:1;min-height:180px;overflow-y:auto;padding:7px 12px;line-height:1.8}
 .pt-line{display:block;white-space:pre-wrap;word-break:break-all}
 .pt-line.ok{color:var(--green)}.pt-line.del{color:var(--amber)}.pt-line.err{color:var(--red)}
+.pt-err-panel{display:none;border-top:2px solid rgba(224,82,82,.4);flex-shrink:0;max-height:150px;overflow-y:auto}
+.pt-err-hdr{padding:5px 12px;font-size:11px;font-weight:500;color:var(--red);background:rgba(224,82,82,.07);position:sticky;top:0;z-index:1}
+.pt-err-item{display:block;padding:1px 12px;font-size:11px;color:var(--red);word-break:break-all;line-height:1.6}
+/* maximized modal */
+.overlay.maxi .modal{width:98vw;max-width:98vw;height:95vh;max-height:95vh;display:flex;flex-direction:column;padding:16px}
+.overlay.maxi #result-body{flex:1;min-height:0;display:flex;flex-direction:column}
+.overlay.maxi #result-body .pt-wrap{flex:1;min-height:0}
+.overlay.maxi #result-body .pt-log{flex:1;min-height:0;height:auto}
 
 /* ── Modal ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
@@ -778,6 +796,7 @@ function renderJobs(jobs, container) {
         <span class="badge ${j.enabled?'badge-on':'badge-off'}">${j.enabled?t('actief','active'):t('uit','off')}</span>
         <button class="btn sm success" onclick="runJob('${j.id}',false)">▶ ${t('Uitvoeren','Run')}</button>
         <button class="btn sm" onclick="runJob('${j.id}',true)">⚙ ${t('Test-run','Test run')}</button>
+        <button class="btn sm" onclick="previewJob('${j.id}')">🔍 ${t('Vergelijken','Compare')}</button>
         <button class="btn sm" onclick="editJob('${j.id}')">✎ ${t('Bewerken','Edit')}</button>
         <button class="btn sm danger" onclick="deleteJob('${j.id}','${esc(j.name)}')">✕</button>
       </div>
@@ -785,36 +804,189 @@ function renderJobs(jobs, container) {
   }).join('');
 }
 
+// ── Terminal helpers ─────────────────────────────────────────
+function _terminalHTML(phases) {
+  const phaseItems = phases.map(([ k, l ], i) =>
+    `<span class="pt-phase${i===0?' active':''}" id="pp-${k}">${l}</span>${i<phases.length-1?'<span class="pt-sep">›</span>':''}`
+  ).join('');
+  return `<div class="pt-wrap">
+    <div class="pt-head">
+      <span class="pt-dot live" id="pt-dot"></span>
+      <span id="pt-name">…</span>
+      <span class="pt-actions">
+        <button class="pt-act-btn" onclick="downloadLog()">↓ Log</button>
+        <button class="pt-act-btn" id="pt-max-btn" onclick="toggleMaximize()">⤢</button>
+      </span>
+    </div>
+    <div class="pt-phases">${phaseItems}</div>
+    <div class="pt-progress">
+      <div class="pt-bar"><div id="pt-bar-fill" class="pt-bar-fill"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px">
+        <span id="pt-status" style="font-size:11px;color:var(--text3)">${t('Starten…','Starting…')}</span>
+        <span id="pt-cur" class="pt-cur" style="max-width:55%"></span>
+      </div>
+    </div>
+    <div class="pt-counters">
+      <span style="color:var(--green)">↑ <b id="pt-copied">0</b> ${t('gekopieerd','copied')}</span>
+      <span style="color:var(--text2)">⊘ <b id="pt-skipped">0</b> ${t('overgeslagen','skipped')}</span>
+      <span style="color:var(--amber)">⊗ <b id="pt-deleted">0</b> ${t('verwijderd','deleted')}</span>
+      <span style="color:var(--red)">! <b id="pt-err-cnt">0</b> ${t('fouten','errors')}</span>
+    </div>
+    <div class="pt-filter-bar" id="pt-filter-bar">
+      <button class="pt-fbtn active" onclick="setLogFilter('all',this)">${t('Alles','All')}</button>
+      <button class="pt-fbtn" onclick="setLogFilter('ok',this)">${t('Gekopieerd','Copied')}</button>
+      <button class="pt-fbtn" onclick="setLogFilter('del',this)">${t('Verwijderd','Deleted')}</button>
+      <button class="pt-fbtn" onclick="setLogFilter('err',this)">${t('Fouten','Errors')}</button>
+    </div>
+    <div class="pt-log" id="pt-log"></div>
+    <div class="pt-err-panel" id="pt-err-panel">
+      <div class="pt-err-hdr">⚠ ${t('Fouten','Errors')} (<span id="pt-err-panel-cnt">0</span>)</div>
+      <div id="pt-err-list"></div>
+    </div>
+  </div>`;
+}
+
+function _setPhase(phase) {
+  const order = ['scan','compare','copy','delete'];
+  const idx   = order.indexOf(phase);
+  order.forEach((p, i) => {
+    const el = document.getElementById('pp-' + p);
+    if (!el) return;
+    el.className = 'pt-phase' + (i < idx ? ' done' : i === idx ? ' active' : '');
+  });
+}
+
+function _updateTerminal(d) {
+  if (d.phase) _setPhase(d.phase);
+  const fill = document.getElementById('pt-bar-fill');
+  if (fill && d.total > 0) fill.style.width = Math.min(100, d.processed / d.total * 100) + '%';
+
+  const phaseLabel = {scan:t('Scannen','Scanning'),compare:t('Vergelijken','Comparing'),
+    copy:t('Kopiëren','Copying'),delete:t('Opruimen','Cleaning up')}[d.phase] || '';
+  const statusEl = document.getElementById('pt-status');
+  if (statusEl) {
+    if (d.action === 'done' && d.phase === 'compare') {
+      statusEl.textContent = t(`Klaar: ${(d.to_copy||0).toLocaleString()} te kopiëren, ${(d.to_delete||0).toLocaleString()} te verwijderen`,
+        `Done: ${(d.to_copy||0).toLocaleString()} to copy, ${(d.to_delete||0).toLocaleString()} to delete`);
+    } else {
+      statusEl.textContent = d.total
+        ? `${phaseLabel}: ${d.processed.toLocaleString()} / ${d.total.toLocaleString()}`
+        : `${phaseLabel}: ${d.processed.toLocaleString()}`;
+    }
+  }
+  const cur = document.getElementById('pt-cur');
+  if (cur) cur.textContent = d.current_file || '';
+  ['copied','skipped','deleted'].forEach(k => {
+    const el = document.getElementById('pt-' + k);
+    if (el) el.textContent = (d[k]||0).toLocaleString();
+  });
+  const errCnt = document.getElementById('pt-err-cnt');
+  if (errCnt) errCnt.textContent = (d.error_count||0).toLocaleString();
+
+  const logEl = document.getElementById('pt-log');
+  if (logEl) {
+    for (const item of (d.batch || [])) {
+      const el = document.createElement('span');
+      el.className = 'pt-line ' + (item.action==='error'?'err':item.action==='deleted'?'del':'ok');
+      el.textContent = item.action==='error' ? `[!] ${item.file}: ${item.message}`
+        : `[${item.action==='deleted'?'-':'+'}] ${item.file}`;
+      logEl.appendChild(el);
+      if (item.action === 'error') _addError(item.file, item.message);
+    }
+    while (logEl.children.length > 400) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
+
+function _addError(file, msg) {
+  const panel = document.getElementById('pt-err-panel');
+  const list  = document.getElementById('pt-err-list');
+  const cnt   = document.getElementById('pt-err-panel-cnt');
+  if (!panel || !list) return;
+  panel.style.display = 'block';
+  if (cnt) cnt.textContent = (parseInt(cnt.textContent)||0) + 1;
+  const el = document.createElement('span');
+  el.className = 'pt-err-item';
+  el.textContent = file ? `${file}: ${msg}` : msg;
+  list.appendChild(el);
+}
+
+function _finishTerminal(res, dry) {
+  const fill = document.getElementById('pt-bar-fill');
+  if (fill) { fill.style.width = '100%'; fill.style.background = res.errors?.length ? 'var(--amber)' : 'var(--green)'; }
+  const dot = document.getElementById('pt-dot');
+  if (dot) { dot.classList.remove('live'); dot.classList.add('idle'); }
+  const status = document.getElementById('pt-status');
+  if (status) status.textContent = dry ? t('Test-run klaar','Dry run done') : t('Backup voltooid','Backup complete');
+  document.getElementById('result-title').textContent = dry
+    ? `🔍 ${t('Test-run resultaat','Dry run result')}`
+    : `✅ ${t('Backup klaar','Backup done')}`;
+  const fb = document.getElementById('pt-filter-bar');
+  if (fb) fb.style.display = 'flex';
+  // flush any remaining errors from results object
+  for (const e of (res.errors || [])) {
+    const errList = document.getElementById('pt-err-list');
+    const already = errList ? errList.children.length : 0;
+    if (already < (res.errors.length)) _addError('', e);
+  }
+  ['scan','compare','copy','delete'].forEach(p => {
+    const el = document.getElementById('pp-' + p); if (el) el.className = 'pt-phase done';
+  });
+}
+
+function _lockModal(lock) {
+  const btn = document.querySelector('#result-overlay .modal-x');
+  if (!btn) return;
+  btn.disabled  = lock;
+  btn.style.opacity = lock ? '0.3' : '';
+}
+
+function toggleMaximize() {
+  document.getElementById('result-overlay').classList.toggle('maxi');
+  const btn = document.getElementById('pt-max-btn');
+  if (btn) btn.textContent = document.getElementById('result-overlay').classList.contains('maxi') ? '⤡' : '⤢';
+}
+
+function setLogFilter(filter, btn) {
+  document.querySelectorAll('.pt-fbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const logEl = document.getElementById('pt-log');
+  if (!logEl) return;
+  for (const el of logEl.children)
+    el.style.display = (filter === 'all' || el.classList.contains(filter)) ? '' : 'none';
+}
+
+function downloadLog() {
+  const name   = document.getElementById('pt-name')?.textContent || 'backup';
+  const logEl  = document.getElementById('pt-log');
+  const errEl  = document.getElementById('pt-err-list');
+  let txt = `BackupManager Log — ${name}\n${new Date().toLocaleString()}\n\n`;
+  txt += `Gekopieerd : ${document.getElementById('pt-copied')?.textContent  || 0}\n`;
+  txt += `Overgeslagen: ${document.getElementById('pt-skipped')?.textContent || 0}\n`;
+  txt += `Verwijderd : ${document.getElementById('pt-deleted')?.textContent  || 0}\n`;
+  txt += `Fouten     : ${document.getElementById('pt-err-cnt')?.textContent  || 0}\n\n`;
+  if (logEl) { txt += '── Activiteiten ──\n'; for (const el of logEl.children) txt += el.textContent + '\n'; }
+  if (errEl && errEl.children.length) {
+    txt += '\n── Fouten (volledig) ──\n';
+    for (const el of errEl.children) txt += el.textContent + '\n';
+  }
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([txt], {type:'text/plain;charset=utf-8'})),
+    download: `backup-log-${Date.now()}.txt`
+  });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
 // ── Run ─────────────────────────────────────────────────────
 function runJob(id, dry) {
   if (!apiOnline) { alert(t('Verbind eerst met de API server.','Connect to the API server first.')); return Promise.resolve(null); }
 
+  const phases = [['scan',t('Scannen','Scan')],['compare',t('Vergelijken','Compare')],
+                  ['copy',t('Kopiëren','Copy')],['delete',t('Opruimen','Cleanup')]];
   return new Promise((resolve) => {
-    showResult(
-      dry ? t('Test-run bezig…','Running test…') : t('Backup bezig…','Backup running…'),
-      `<div class="pt-wrap">
-        <div class="pt-head">
-          <span class="pt-dot live"></span>
-          <span id="pt-name">…</span>
-          <span class="pt-status" id="pt-status">${t('Starten…','Starting…')}</span>
-        </div>
-        <div class="pt-progress">
-          <div class="pt-bar"><div id="pt-bar-fill" class="pt-bar-fill"></div></div>
-          <div class="pt-cur" id="pt-cur"></div>
-        </div>
-        <div class="pt-counters">
-          <span style="color:var(--green)">↑ <b id="pt-copied">0</b> ${t('gekopieerd','copied')}</span>
-          <span style="color:var(--text2)">⊘ <b id="pt-skipped">0</b> ${t('overgeslagen','skipped')}</span>
-          <span style="color:var(--amber)">⊗ <b id="pt-deleted">0</b> ${t('verwijderd','deleted')}</span>
-          <span style="color:var(--red)">! <b id="pt-errors">0</b> ${t('fouten','errors')}</span>
-        </div>
-        <div class="pt-log" id="pt-log"></div>
-      </div>`
-    );
-
-    const closeBtn = document.querySelector('#result-overlay .modal-x');
-    closeBtn.disabled = true;
-    closeBtn.style.opacity = '0.3';
+    showResult(dry ? t('Test-run bezig…','Running test…') : t('Backup bezig…','Backup running…'),
+               _terminalHTML(phases));
+    _lockModal(true);
 
     const es = new EventSource(`${API}/api/jobs/${id}/stream?dry=${dry?1:0}`);
 
@@ -823,58 +995,88 @@ function runJob(id, dry) {
       document.getElementById('pt-name').textContent = d.job + (d.dry_run ? '  [DRY RUN]' : '');
     });
 
-    es.addEventListener('progress', e => {
-      const d = JSON.parse(e.data);
-      const fill = document.getElementById('pt-bar-fill');
-      if (d.total > 0) fill.style.width = Math.min(100, d.processed / d.total * 100) + '%';
-      document.getElementById('pt-status').textContent = d.total
-        ? `${d.processed.toLocaleString()} / ${d.total.toLocaleString()}`
-        : `${d.processed.toLocaleString()} ${t('bestanden','files')}`;
-      document.getElementById('pt-cur').textContent = d.current_file || '';
-      document.getElementById('pt-copied').textContent  = d.copied.toLocaleString();
-      document.getElementById('pt-skipped').textContent = d.skipped.toLocaleString();
-      document.getElementById('pt-deleted').textContent = d.deleted.toLocaleString();
-      document.getElementById('pt-errors').textContent  = d.error_count.toLocaleString();
-
-      const log = document.getElementById('pt-log');
-      for (const item of (d.batch || [])) {
-        const el = document.createElement('span');
-        el.className = 'pt-line ' + (item.action === 'error' ? 'err' : item.action === 'deleted' ? 'del' : 'ok');
-        el.textContent = item.action === 'error'
-          ? `[!] ${item.file}: ${item.message}`
-          : `[${item.action === 'deleted' ? '-' : '+'}] ${item.file}`;
-        log.appendChild(el);
-      }
-      while (log.children.length > 300) log.removeChild(log.firstChild);
-      log.scrollTop = log.scrollHeight;
-    });
+    es.addEventListener('progress', e => { _updateTerminal(JSON.parse(e.data)); });
 
     es.addEventListener('done', e => {
       es.close();
       const res = JSON.parse(e.data);
-      document.getElementById('pt-bar-fill').style.width   = '100%';
-      document.getElementById('pt-bar-fill').style.background = res.errors?.length ? 'var(--amber)' : 'var(--green)';
-      document.querySelector('.pt-dot').classList.remove('live');
-      document.querySelector('.pt-dot').classList.add('idle');
-      document.getElementById('pt-status').textContent = dry ? t('Test-run klaar','Dry run done') : t('Klaar!','Done!');
-      document.getElementById('result-title').textContent = dry
-        ? `🔍 ${t('Test-run resultaat','Dry run result')}`
-        : `✅ ${t('Backup klaar','Backup done')}`;
-      closeBtn.disabled = false;
-      closeBtn.style.opacity = '';
+      _finishTerminal(res, dry);
+      _lockModal(false);
       if (!dry) loadJobs();
       resolve(res);
     });
 
     es.onerror = () => {
       es.close();
-      document.getElementById('pt-status').textContent = t('Verbinding verloren','Connection lost');
-      document.getElementById('pt-status').style.color = 'var(--red)';
-      closeBtn.disabled = false;
-      closeBtn.style.opacity = '';
+      const s = document.getElementById('pt-status');
+      if (s) { s.textContent = t('Verbinding verloren','Connection lost'); s.style.color = 'var(--red)'; }
+      _lockModal(false);
       resolve(null);
     };
   });
+}
+
+// ── Preview (vergelijken zonder kopiëren) ────────────────────
+function previewJob(id) {
+  if (!apiOnline) { alert(t('Verbind eerst met de API server.','Connect to the API server first.')); return; }
+
+  const phases = [['scan',t('Scannen','Scan')],['compare',t('Vergelijken','Compare')]];
+  showResult(t('Vergelijken…','Comparing…'), _terminalHTML(phases) +
+    `<div id="pt-preview-bar" style="display:none;padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+       <button class="btn success" id="pt-confirm-btn">▶ ${t('Nu uitvoeren','Run now')}</button>
+       <button class="btn" onclick="closeModal('result-overlay')">${t('Annuleren','Cancel')}</button>
+     </div>`);
+  _lockModal(true);
+
+  const es = new EventSource(`${API}/api/jobs/${id}/stream?dry=0&preview=1`);
+
+  es.addEventListener('start', e => {
+    document.getElementById('pt-name').textContent = JSON.parse(e.data).job;
+  });
+
+  es.addEventListener('progress', e => { _updateTerminal(JSON.parse(e.data)); });
+
+  es.addEventListener('done', e => {
+    es.close();
+    const res = JSON.parse(e.data);
+    const fill = document.getElementById('pt-bar-fill');
+    if (fill) { fill.style.width = '100%'; fill.style.background = 'var(--accent)'; }
+    const dot = document.getElementById('pt-dot');
+    if (dot) { dot.classList.remove('live'); dot.classList.add('idle'); }
+    ['scan','compare'].forEach(p => { const el = document.getElementById('pp-'+p); if(el) el.className='pt-phase done'; });
+    document.getElementById('result-title').textContent = t('Vergelijkingsresultaat','Comparison result');
+    const status = document.getElementById('pt-status');
+    if (status) status.textContent = t(
+      `${(res.to_copy||0).toLocaleString()} te kopiëren · ${(res.to_delete||0).toLocaleString()} te verwijderen · ${(res.skipped||0).toLocaleString()} ongewijzigd`,
+      `${(res.to_copy||0).toLocaleString()} to copy · ${(res.to_delete||0).toLocaleString()} to delete · ${(res.skipped||0).toLocaleString()} unchanged`);
+
+    // Show first files to copy in log
+    const logEl = document.getElementById('pt-log');
+    if (logEl && res.preview_files?.length) {
+      logEl.innerHTML = '';
+      for (const f of res.preview_files) {
+        const el = document.createElement('span');
+        el.className = 'pt-line ok'; el.textContent = '[→] ' + f; logEl.appendChild(el);
+      }
+      if (res.to_copy > res.preview_files.length) {
+        const el = document.createElement('span');
+        el.className = 'pt-line'; el.style.color = 'var(--text3)';
+        el.textContent = `… en nog ${(res.to_copy - res.preview_files.length).toLocaleString()} meer`; logEl.appendChild(el);
+      }
+    }
+    const fb = document.getElementById('pt-filter-bar'); if (fb) fb.style.display = 'none';
+    const pb = document.getElementById('pt-preview-bar'); if (pb) pb.style.display = 'flex';
+    const cb = document.getElementById('pt-confirm-btn');
+    if (cb) cb.onclick = () => { closeModal('result-overlay'); runJob(id, false); };
+    _lockModal(false);
+  });
+
+  es.onerror = () => {
+    es.close();
+    const s = document.getElementById('pt-status');
+    if (s) { s.textContent = t('Verbinding verloren','Connection lost'); s.style.color = 'var(--red)'; }
+    _lockModal(false);
+  };
 }
 
 function renderResult(res, dry) {
