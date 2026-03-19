@@ -706,6 +706,7 @@ function setLanguage(lang) {
   currentLang = lang;
   applyLang();
   savePref();
+  loadJobs();
   if (apiOnline) fetch(API+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:lang})});
 }
 
