@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BackupManager</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ── Theme tokens ── */
+[data-theme="dark"]{
+  --bg:#0f1117;--bg2:#171b26;--bg3:#1e2333;
+  --border:#2a3045;--border2:#3a4560;
+  --text:#e8ecf4;--text2:#8892aa;--text3:#4a5570;
+  --accent:#4f8ef7;--accent2:#3a6fd4;
+  --green:#3dd68c;--amber:#f5a623;--red:#e05252;--purple:#a78bfa;
+  --shadow:rgba(0,0,0,0.4);
+}
+[data-theme="light"]{
+  --bg:#f4f6fb;--bg2:#ffffff;--bg3:#eef1f8;
+  --border:#d0d8ea;--border2:#b0bcd4;
+  --text:#1a2035;--text2:#4a5878;--text3:#8898b8;
+  --accent:#2563eb;--accent2:#1d4ed8;
+  --green:#16a34a;--amber:#d97706;--red:#dc2626;--purple:#7c3aed;
+  --shadow:rgba(0,0,0,0.08);
+}
+
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5;transition:background .2s,color .2s}
+
+/* ── Shell ── */
+.shell{display:grid;grid-template-columns:220px 1fr;grid-template-rows:48px 1fr;min-height:100vh}
+.topbar{grid-column:1/-1;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px}
+.topbar-logo{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;color:var(--accent);letter-spacing:-.5px}
+.topbar-logo span{color:var(--text2)}
+.topbar-ver{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.status-pill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
+.status-dot.on{background:var(--green);box-shadow:0 0 5px var(--green)}
+.icon-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px;transition:all .12s}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── Sidebar ── */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:16px 0;display:flex;flex-direction:column;gap:2px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;font-size:13px;color:var(--text2);border-left:2px solid transparent;transition:all .12s}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(79,142,247,.1);color:var(--accent);border-left-color:var(--accent)}
+.nav-icon{width:15px;height:15px;flex-shrink:0}
+.nav-sec{padding:16px 16px 4px;font-size:10px;font-weight:500;letter-spacing:1px;color:var(--text3);text-transform:uppercase}
+.nav-div{height:1px;background:var(--border);margin:8px 0}
+.sidebar-foot{margin-top:auto;padding:12px 16px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);line-height:1.7}
+
+/* ── Main ── */
+.main{padding:28px;overflow-y:auto}
+.page{display:none}.page.active{display:block}
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px}
+.page-title{font-size:20px;font-weight:500}
+.page-sub{font-size:13px;color:var(--text2);margin-top:2px}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font:13px 'IBM Plex Sans',sans-serif;cursor:pointer;transition:all .12s;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.btn.primary:hover{background:var(--accent2);border-color:var(--accent2);color:#fff}
+.btn.danger{border-color:rgba(224,82,82,.4);color:var(--red)}
+.btn.danger:hover{background:rgba(224,82,82,.08)}
+.btn.success{border-color:rgba(61,214,140,.4);color:var(--green)}
+.btn.success:hover{background:rgba(61,214,140,.07)}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ── Cards ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px}
+.card+.card{margin-top:14px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.card-title{font-size:14px;font-weight:500}
+
+/* ── Job list ── */
+.job-list{display:flex;flex-direction:column;gap:10px}
+.job-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;transition:border-color .12s}
+.job-card:hover{border-color:var(--border2)}
+.job-card.disabled{opacity:.55}
+.job-name{font-weight:500;font-size:14px}
+.job-meta{display:flex;gap:14px;margin-top:6px;flex-wrap:wrap}
+.job-meta-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);font-family:'IBM Plex Mono',monospace}
+.job-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:500}
+.badge-on{background:rgba(61,214,140,.12);color:var(--green)}
+.badge-off{background:rgba(74,85,112,.3);color:var(--text3)}
+.badge-sch{background:rgba(79,142,247,.12);color:var(--accent)}
+
+/* ── Forms ── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.span2{grid-column:span 2}
+label{font-size:12px;font-weight:500;color:var(--text2);letter-spacing:.3px}
+input[type=text],input[type=number],select,textarea{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font:13px 'IBM Plex Sans',sans-serif;padding:8px 10px;width:100%;transition:border-color .12s;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+select option{background:var(--bg3);color:var(--text)}
+textarea{resize:vertical;min-height:72px;font-family:'IBM Plex Mono',monospace;font-size:12px}
+.hint{font-size:11px;color:var(--text3);line-height:1.5}
+.fsec{margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
+.fsec-title{font-size:12px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px}
+
+/* ── Presets ── */
+.preset-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.preset-btn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--text2);cursor:pointer;transition:all .12s}
+.preset-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── Tag input (excludes) ── */
+.tag-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 8px;min-height:38px;display:flex;flex-wrap:wrap;gap:5px;cursor:text;transition:border-color .12s}
+.tag-wrap:focus-within{border-color:var(--accent)}
+.tag{display:inline-flex;align-items:center;gap:4px;background:rgba(79,142,247,.14);color:var(--accent);border-radius:4px;padding:2px 7px;font-size:12px;font-family:'IBM Plex Mono',monospace}
+.tag-x{cursor:pointer;opacity:.6;font-size:13px;line-height:1}.tag-x:hover{opacity:1}
+.tag-input{border:none;background:none;color:var(--text);font:12px 'IBM Plex Mono',monospace;outline:none;min-width:120px;flex:1}
+
+/* ── Schedule ── */
+.sched-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.cron-prev{font-size:12px;color:var(--text2);margin-top:10px}
+.cron-prev span{font-family:'IBM Plex Mono',monospace;color:var(--accent)}
+
+/* ── Toggle ── */
+.toggle-row{display:flex;align-items:center;gap:10px}
+.toggle{position:relative;width:38px;height:21px}
+.toggle input{display:none}
+.tslider{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;cursor:pointer;transition:.2s}
+.tslider::before{content:'';position:absolute;left:3px;top:3px;width:13px;height:13px;background:var(--text3);border-radius:50%;transition:.2s}
+.toggle input:checked+.tslider{background:rgba(79,142,247,.2);border-color:var(--accent)}
+.toggle input:checked+.tslider::before{background:var(--accent);transform:translateX(17px)}
+.tl{font-size:13px;color:var(--text2)}
+
+/* ── Log ── */
+.log-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.log-toolbar input[type=text]{width:200px}
+.log-toolbar select{width:120px}
+.log-meta{font-size:11px;color:var(--text3);margin-left:auto}
+.log-viewer{background:var(--bg);border:1px solid var(--border);border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:14px;height:520px;overflow-y:auto;color:var(--text2);line-height:1.9;white-space:pre-wrap;word-break:break-all}
+.ll-ok{color:var(--green)}.ll-skip{color:var(--text2)}.ll-del{color:var(--amber)}.ll-err{color:var(--red)}.ll-dry{color:var(--purple)}.ll-info{color:var(--accent)}.ll-warn{color:var(--amber)}
+
+/* ── Result modal ── */
+.result-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.rstat{background:var(--bg3);border-radius:6px;padding:12px;text-align:center}
+.rnum{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:500}
+.rlbl{font-size:11px;color:var(--text2);margin-top:2px}
+.rg .rnum{color:var(--green)}.rs .rnum{color:var(--text2)}.ra .rnum{color:var(--amber)}.rr .rnum{color:var(--red)}
+
+/* ── Modal ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:24px;width:620px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-size:16px;font-weight:500}
+.modal-x{background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px;padding:2px 6px;border-radius:4px}
+.modal-x:hover{color:var(--text);background:var(--bg3)}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* ── Banners ── */
+.banner{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:16px}
+.banner.warn{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.25);color:var(--amber)}
+.banner.info{background:rgba(79,142,247,.08);border:1px solid rgba(79,142,247,.2);color:var(--accent)}
+.banner.ok{background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.2);color:var(--green)}
+
+/* ── Settings ── */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.srow{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
+.srow:last-child{border-bottom:none}
+.srow-lbl{font-size:13px}.srow-sub{font-size:11px;color:var(--text3);margin-top:2px}
+
+/* ── Help ── */
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:11px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green);line-height:1.9;white-space:pre;overflow-x:auto}
+.step-num{background:var(--accent);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex-shrink:0}
+.step-row{display:flex;gap:14px;align-items:flex-start;margin-bottom:18px}
+code{font-family:'IBM Plex Mono',monospace;background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:12px}
+
+/* ── Empty ── */
+.empty{text-align:center;padding:56px 24px;color:var(--text3)}
+.empty-icon{font-size:36px;margin-bottom:12px;opacity:.4}
+.empty-title{font-size:15px;color:var(--text2);margin-bottom:6px}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- Topbar -->
+<header class="topbar">
+  <div class="topbar-logo">backup<span>/</span>manager</div>
+  <div class="topbar-ver">v2.0</div>
+  <div class="topbar-right">
+    <div class="status-pill">
+      <div class="status-dot" id="api-dot"></div>
+      <span id="api-txt" data-nl="Verbinden…" data-en="Connecting…">Verbinden…</span>
+    </div>
+    <button class="icon-btn" onclick="toggleTheme()" title="Light/Dark" id="theme-btn">☀</button>
+    <button class="icon-btn" onclick="toggleLang()" id="lang-btn">EN</button>
+  </div>
+</header>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="nav-sec" data-nl="Navigatie" data-en="Navigation">Navigatie</div>
+  <div class="nav-item active" data-page="jobs" onclick="showPage('jobs',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M5 5.5h6M5 10.5h4"/></svg>
+    <span data-nl="Backup jobs" data-en="Backup jobs">Backup jobs</span>
+  </div>
+  <div class="nav-item" data-page="new" onclick="showPage('new',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M5 8h6"/></svg>
+    <span data-nl="Nieuwe job" data-en="New job">Nieuwe job</span>
+  </div>
+  <div class="nav-div"></div>
+  <div class="nav-sec" data-nl="Beheer" data-en="Manage">Beheer</div>
+  <div class="nav-item" data-page="log" onclick="showPage('log',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h5"/></svg>
+    <span data-nl="Logboek" data-en="Log viewer">Logboek</span>
+  </div>
+  <div class="nav-item" data-page="settings" onclick="showPage('settings',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>
+    <span data-nl="Instellingen" data-en="Settings">Instellingen</span>
+  </div>
+  <div class="nav-item" data-page="help" onclick="showPage('help',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M6.5 6C6.5 5.17 7.17 4.5 8 4.5s1.5.67 1.5 1.5c0 1-1.5 1.5-1.5 2.5M8 11v.5"/></svg>
+    <span data-nl="Help" data-en="Help">Help</span>
+  </div>
+  <div class="sidebar-foot" id="sidebar-foot">python3 backupmanager.py<br>--daemon --port 7842</div>
+</nav>
+
+<!-- Main -->
+<main class="main">
+<div id="api-banner" class="banner warn" style="display:none">
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2L14 13H2L8 2z"/><path d="M8 7v3M8 11.5v.5"/></svg>
+  <span data-nl="Kan de BackupManager API niet bereiken. Start eerst: python3 backupmanager.py --daemon"
+        data-en="Cannot reach the BackupManager API. Start it first: python3 backupmanager.py --daemon">
+    Kan de BackupManager API niet bereiken. Start eerst: python3 backupmanager.py --daemon
+  </span>
+</div>
+
+<!-- ══ JOBS ══ -->
+<div class="page active" id="page-jobs">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title" data-nl="Backup jobs" data-en="Backup jobs">Backup jobs</div>
+      <div class="page-sub" data-nl="Overzicht van alle geconfigureerde backups" data-en="Overview of all configured backup jobs">Overzicht van alle geconfigureerde backups</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="exportJobs()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 11v2h10v-2"/></svg>
+        <span data-nl="Exporteren" data-en="Export">Exporteren</span>
+      </button>
+      <label class="btn" style="cursor:pointer">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 11V3M5 6l3-3 3 3M3 11v2h10v-2"/></svg>
+        <span data-nl="Importeren" data-en="Import">Importeren</span>
+        <input type="file" accept=".json" style="display:none" onchange="importJobs(this)">
+      </label>
+      <button class="btn" onclick="loadJobs()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 1 0 1.5-4"/><path d="M2 4v4h4"/></svg>
+        <span data-nl="Vernieuwen" data-en="Refresh">Vernieuwen</span>
+      </button>
+      <button class="btn primary" onclick="showPage('new',document.querySelector('[data-page=new]'))">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M5 8h6"/></svg>
+        <span data-nl="Nieuwe job" data-en="New job">Nieuwe job</span>
+      </button>
+    </div>
+  </div>
+  <div class="job-list" id="job-list">
+    <div class="empty">
+      <div class="empty-icon">🗄</div>
+      <div class="empty-title" data-nl="Nog geen backup jobs" data-en="No backup jobs yet">Nog geen backup jobs</div>
+      <div data-nl="Klik op 'Nieuwe job' om te beginnen" data-en="Click 'New job' to get started">Klik op 'Nieuwe job' om te beginnen</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NEW / EDIT JOB ══ -->
+<div class="page" id="page-new">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title" id="new-title" data-nl="Nieuwe backup job" data-en="New backup job">Nieuwe backup job</div>
+      <div class="page-sub" data-nl="Configureer bron, uitsluitingen, bestemming en planning" data-en="Configure source, exclusions, destination and schedule">Configureer bron, uitsluitingen, bestemming en planning</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="form-grid">
+      <div class="field span2">
+        <label data-nl="Naam van deze job" data-en="Job name">Naam van deze job</label>
+        <input type="text" id="f-name" placeholder="bijv. Documenten dagelijks">
+      </div>
+      <div class="field">
+        <label data-nl="Bron (map of bestand)" data-en="Source (folder or file)">Bron (map of bestand)</label>
+        <input type="text" id="f-source" placeholder="/home/gebruiker/Documenten">
+        <div class="hint" data-nl="Absoluut pad naar de map of het bestand" data-en="Absolute path to the folder or file">Absoluut pad naar de map of het bestand</div>
+        <div class="preset-row">
+          <span class="preset-btn" onclick="setField('f-source',homeDir()+'/Documenten')">Documenten</span>
+          <span class="preset-btn" onclick="setField('f-source',homeDir()+'/Afbeeldingen')">Afbeeldingen</span>
+          <span class="preset-btn" onclick="setField('f-source',homeDir()+'/Bureau')">Bureau</span>
+          <span class="preset-btn" onclick="setField('f-source',homeDir())">Home (~)</span>
+          <span class="preset-btn" onclick="setField('f-source','/etc')">/etc</span>
+        </div>
+      </div>
+      <div class="field">
+        <label data-nl="Bestemming (backup locatie)" data-en="Destination (backup location)">Bestemming (backup locatie)</label>
+        <input type="text" id="f-dest" placeholder="/mnt/backup">
+        <div class="hint" data-nl="Lokale schijf, USB, NFS-mount" data-en="Local disk, USB, NFS mount">Lokale schijf, USB, NFS-mount</div>
+        <div class="preset-row">
+          <span class="preset-btn" onclick="setField('f-dest','/mnt/backup')">NFS/lokaal</span>
+          <span class="preset-btn" onclick="setField('f-dest','/media/'+getUser()+'/backup')">USB</span>
+          <span class="preset-btn" onclick="setField('f-dest',homeDir()+'/Backup')">Home/Backup</span>
+        </div>
+      </div>
+
+      <!-- Excludes -->
+      <div class="field span2">
+        <label data-nl="Uitsluitingen (bestanden/mappen overslaan)" data-en="Exclusions (skip files/folders)">Uitsluitingen (bestanden/mappen overslaan)</label>
+        <div class="tag-wrap" id="tag-wrap" onclick="document.getElementById('tag-input').focus()">
+          <input class="tag-input" id="tag-input" placeholder="*.tmp, .git, node_modules … Enter om toe te voegen">
+        </div>
+        <div class="hint" data-nl="Glob-patronen: *.log, .git, node_modules, Thumbs.db — Enter om te bevestigen, ✕ om te verwijderen"
+                          data-en="Glob patterns: *.log, .git, node_modules, Thumbs.db — press Enter to add, ✕ to remove">
+          Glob-patronen: *.log, .git, node_modules — Enter om toe te voegen
+        </div>
+        <div class="preset-row">
+          <span class="preset-btn" onclick="addTag('.git')"><span data-nl="Git-map" data-en="Git dir">.git</span></span>
+          <span class="preset-btn" onclick="addTag('node_modules')">node_modules</span>
+          <span class="preset-btn" onclick="addTag('*.tmp')">*.tmp</span>
+          <span class="preset-btn" onclick="addTag('*.log')">*.log</span>
+          <span class="preset-btn" onclick="addTag('*.pyc')">*.pyc</span>
+          <span class="preset-btn" onclick="addTag('__pycache__')">__pycache__</span>
+          <span class="preset-btn" onclick="addTag('.DS_Store')">.DS_Store</span>
+          <span class="preset-btn" onclick="addTag('Thumbs.db')">Thumbs.db</span>
+          <span class="preset-btn" onclick="addTag('*.swp')">*.swp</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="fsec">
+      <div class="fsec-title" data-nl="Bestandsgedrag" data-en="File behavior">Bestandsgedrag</div>
+      <div class="form-grid">
+        <div class="field">
+          <label data-nl="Ontbrekende bestanden in bestemming" data-en="Files missing from destination">Ontbrekende bestanden in bestemming</label>
+          <select id="f-missing">
+            <option value="skip" data-nl="Laat staan (niet verwijderen)" data-en="Keep (do not delete)">Laat staan (niet verwijderen)</option>
+            <option value="delete_in_dst" data-nl="Verwijder uit bestemming (mirror)" data-en="Delete from destination (mirror)">Verwijder uit bestemming (mirror)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label data-nl="Dubbele bestanden" data-en="Duplicate files">Dubbele bestanden</label>
+          <select id="f-duplicate">
+            <option value="overwrite_if_newer" data-nl="Overschrijf als bron nieuwer is" data-en="Overwrite if source is newer">Overschrijf als bron nieuwer is</option>
+            <option value="overwrite_if_different" data-nl="Overschrijf als inhoud verschilt" data-en="Overwrite if content differs">Overschrijf als inhoud verschilt</option>
+            <option value="overwrite_always" data-nl="Altijd overschrijven" data-en="Always overwrite">Altijd overschrijven</option>
+            <option value="skip" data-nl="Nooit overschrijven" data-en="Never overwrite">Nooit overschrijven</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="fsec">
+      <div class="fsec-title" data-nl="Planning (cron)" data-en="Schedule (cron)">Planning (cron)</div>
+      <div class="sched-grid">
+        <div class="field"><label data-nl="Minuut" data-en="Minute">Minuut</label><input type="text" id="s-min" value="0"></div>
+        <div class="field"><label data-nl="Uur" data-en="Hour">Uur</label><input type="text" id="s-hr" value="2"></div>
+        <div class="field"><label data-nl="Dag (maand)" data-en="Day (month)">Dag (maand)</label><input type="text" id="s-day" value="*"></div>
+        <div class="field"><label data-nl="Maand" data-en="Month">Maand</label><input type="text" id="s-mo" value="*"></div>
+        <div class="field"><label data-nl="Dag (week)" data-en="Day (week)">Dag (week)</label><input type="text" id="s-wd" value="*"></div>
+      </div>
+      <div class="preset-row" style="margin-top:10px">
+        <span class="preset-btn" onclick="setSched('0','2','*','*','*')" data-nl="Elke nacht 02:00" data-en="Every night 02:00">Elke nacht 02:00</span>
+        <span class="preset-btn" onclick="setSched('0','8','*','*','1')" data-nl="Elke maandag 08:00" data-en="Every Monday 08:00">Elke maandag 08:00</span>
+        <span class="preset-btn" onclick="setSched('0','3','1','*','*')" data-nl="1e v/d maand 03:00" data-en="1st of month 03:00">1e v/d maand 03:00</span>
+        <span class="preset-btn" onclick="setSched('0','*/6','*','*','*')" data-nl="Elke 6 uur" data-en="Every 6 hours">Elke 6 uur</span>
+        <span class="preset-btn" onclick="setSched('*/30','*','*','*','*')" data-nl="Elke 30 min" data-en="Every 30 min">Elke 30 min</span>
+        <span class="preset-btn" onclick="setSched('0','0','*','*','*')" data-nl="Dagelijks middernacht" data-en="Daily midnight">Dagelijks middernacht</span>
+      </div>
+      <div class="cron-prev" data-nl="Huidig schema: " data-en="Current schedule: ">Huidig schema: <span id="cron-prev"></span></div>
+    </div>
+
+    <div class="fsec">
+      <div class="toggle-row">
+        <label class="toggle"><input type="checkbox" id="f-enabled" checked><span class="tslider"></span></label>
+        <span class="tl" data-nl="Job ingeschakeld (voegt toe aan crontab)" data-en="Job enabled (adds to crontab)">Job ingeschakeld (voegt toe aan crontab)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row" style="margin-top:16px">
+    <button class="btn primary" onclick="saveJob()">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 5l-6 6-3-3"/></svg>
+      <span data-nl="Opslaan" data-en="Save">Opslaan</span>
+    </button>
+    <button class="btn success" onclick="testRunNew()">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5,3 13,8 5,13"/></svg>
+      <span data-nl="Test-run (droogloop)" data-en="Test run (dry run)">Test-run (droogloop)</span>
+    </button>
+    <button class="btn" onclick="showPage('jobs',document.querySelector('[data-page=jobs]'))">
+      <span data-nl="Annuleren" data-en="Cancel">Annuleren</span>
+    </button>
+  </div>
+</div>
+
+<!-- ══ LOG ══ -->
+<div class="page" id="page-log">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title" data-nl="Logboek" data-en="Log viewer">Logboek</div>
+      <div class="page-sub" id="log-path-sub" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)"></div>
+    </div>
+  </div>
+  <div class="log-toolbar">
+    <input type="text" id="log-search" placeholder="Zoeken / Search…" oninput="loadLog()" style="width:200px">
+    <select id="log-level" onchange="loadLog()">
+      <option value="ALL" data-nl="Alle niveaus" data-en="All levels">Alle niveaus</option>
+      <option value="INFO">INFO</option>
+      <option value="WARNING">WARNING</option>
+      <option value="ERROR">ERROR</option>
+    </select>
+    <select id="log-lines" onchange="loadLog()">
+      <option value="100">100 regels</option>
+      <option value="200" selected>200 regels</option>
+      <option value="500">500 regels</option>
+    </select>
+    <button class="btn" onclick="loadLog()">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 1 0 1.5-4"/><path d="M2 4v4h4"/></svg>
+      <span data-nl="Vernieuwen" data-en="Refresh">Vernieuwen</span>
+    </button>
+    <button class="btn" onclick="saveLog()">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 11v2h10v-2"/></svg>
+      <span data-nl="Opslaan als…" data-en="Save as…">Opslaan als…</span>
+    </button>
+    <button class="btn danger" onclick="clearLog()">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M5 4V3h6v1M6 7v5M10 7v5M4 4l.5 9h7l.5-9"/></svg>
+      <span data-nl="Log wissen" data-en="Clear log">Log wissen</span>
+    </button>
+    <div class="log-meta" id="log-meta"></div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="log-viewer" id="log-viewer" data-nl="Log wordt geladen…" data-en="Loading log…">Log wordt geladen…</div>
+  </div>
+</div>
+
+<!-- ══ SETTINGS ══ -->
+<div class="page" id="page-settings">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title" data-nl="Instellingen" data-en="Settings">Instellingen</div>
+      <div class="page-sub" data-nl="Thema, taal, log-locatie" data-en="Theme, language, log location">Thema, taal, log-locatie</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="srow">
+      <div><div class="srow-lbl" data-nl="Thema" data-en="Theme">Thema</div><div class="srow-sub" data-nl="Donker of licht kleurenschema" data-en="Dark or light color scheme">Donker of licht kleurenschema</div></div>
+      <div class="btn-row">
+        <button class="btn sm" onclick="setTheme('dark')" id="btn-dark">🌙 <span data-nl="Donker" data-en="Dark">Donker</span></button>
+        <button class="btn sm" onclick="setTheme('light')" id="btn-light">☀ <span data-nl="Licht" data-en="Light">Licht</span></button>
+      </div>
+    </div>
+    <div class="srow">
+      <div><div class="srow-lbl" data-nl="Taal" data-en="Language">Taal</div><div class="srow-sub">Nederlands / English</div></div>
+      <div class="btn-row">
+        <button class="btn sm" onclick="setLanguage('nl')" id="btn-nl">🇳🇱 Nederlands</button>
+        <button class="btn sm" onclick="setLanguage('en')" id="btn-en">🇬🇧 English</button>
+      </div>
+    </div>
+    <div class="srow">
+      <div style="flex:1;margin-right:16px">
+        <div class="srow-lbl" data-nl="Log-bestandslocatie" data-en="Log file location">Log-bestandslocatie</div>
+        <div class="srow-sub" data-nl="Pad waar het logbestand wordt opgeslagen" data-en="Path where the log file is saved">Pad waar het logbestand wordt opgeslagen</div>
+        <input type="text" id="s-logpath" style="margin-top:8px;width:100%;max-width:420px" placeholder="~/.local/share/backupmanager/backup.log">
+      </div>
+      <button class="btn sm primary" onclick="saveSettings()" style="align-self:flex-end">
+        <span data-nl="Opslaan" data-en="Save">Opslaan</span>
+      </button>
+    </div>
+    <div class="srow">
+      <div><div class="srow-lbl" data-nl="Max. regels in log-weergave" data-en="Max lines in log view">Max. regels in log-weergave</div></div>
+      <select id="s-logmax" style="width:120px">
+        <option value="200">200</option>
+        <option value="500" selected>500</option>
+        <option value="1000">1000</option>
+        <option value="2000">2000</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HELP ══ -->
+<div class="page" id="page-help">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title" data-nl="Help & installatie" data-en="Help & installation">Help & installatie</div>
+      <div class="page-sub" data-nl="Installatie, systemd service en uitleg" data-en="Installation, systemd service and explanation">Installatie, systemd service en uitleg</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hdr"><div class="card-title" data-nl="Snelstart — 3 stappen" data-en="Quick start — 3 steps">Snelstart — 3 stappen</div></div>
+    <div class="step-row">
+      <div class="step-num">1</div>
+      <div>
+        <div style="font-weight:500;margin-bottom:4px" data-nl="Download & sla op" data-en="Download & save">Download & sla op</div>
+        <div style="font-size:13px;color:var(--text2)">
+          <span data-nl="Sla " data-en="Save ">Sla </span><code>backupmanager.py</code>
+          <span data-nl=" en " data-en=" and "> en </span><code>backupmanager.html</code>
+          <span data-nl=" op in bijv. " data-en=" in e.g. "> op in bijv. </span><code>~/MjApps/BackUpManager/</code>
+        </div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num">2</div>
+      <div>
+        <div style="font-weight:500;margin-bottom:6px" data-nl="Start de API server" data-en="Start the API server">Start de API server</div>
+        <div class="code-block">python3 backupmanager.py --daemon</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:5px" data-nl="De CUDA-waarschuwing bovenin is onschadelijk — de server start gewoon." data-en="The CUDA warning at the top is harmless — the server starts fine.">De CUDA-waarschuwing bovenin is onschadelijk — de server start gewoon.</div>
+      </div>
+    </div>
+    <div class="step-row">
+      <div class="step-num">3</div>
+      <div>
+        <div style="font-weight:500;margin-bottom:4px" data-nl="Open de GUI in je browser" data-en="Open the GUI in your browser">Open de GUI in je browser</div>
+        <div class="code-block">firefox backupmanager.html
+# of: chromium backupmanager.html</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hdr"><div class="card-title" data-nl="Systemd service aanmaken (automatisch opstarten)" data-en="Create systemd service (auto-start)">Systemd service aanmaken (automatisch opstarten)</div></div>
+
+    <div style="font-size:13px;color:var(--text2);margin-bottom:10px">
+      <span data-nl="Stap 1 — Maak de map aan als die nog niet bestaat:" data-en="Step 1 — Create the directory if it doesn't exist yet:">Stap 1 — Maak de map aan als die nog niet bestaat:</span>
+    </div>
+    <div class="code-block">mkdir -p ~/.config/systemd/user</div>
+
+    <div style="font-size:13px;color:var(--text2);margin:14px 0 8px">
+      <span data-nl="Stap 2 — Maak het service-bestand aan met een teksteditor:" data-en="Step 2 — Create the service file with a text editor:">Stap 2 — Maak het service-bestand aan met een teksteditor:</span>
+    </div>
+    <div class="code-block">nano ~/.config/systemd/user/backupmanager.service
+# of: gedit ~/.config/systemd/user/backupmanager.service
+# of: kate ~/.config/systemd/user/backupmanager.service</div>
+
+    <div style="font-size:13px;color:var(--text2);margin:14px 0 8px">
+      <span data-nl="Stap 3 — Plak deze inhoud in het bestand (pas het pad aan naar jouw locatie):" data-en="Step 3 — Paste this content into the file (adjust the path to your location):">Stap 3 — Plak deze inhoud in het bestand (pas het pad aan naar jouw locatie):</span>
+    </div>
+    <div class="code-block">[Unit]
+Description=BackupManager API
+After=network.target
+
+[Service]
+ExecStart=python3 /home/mjeppo/MjApps/BackUpManager/backupmanager.py --daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target</div>
+
+    <div style="font-size:13px;color:var(--text2);margin:14px 0 8px">
+      <span data-nl="Stap 4 — Sla op (Ctrl+O, Enter, Ctrl+X bij nano) en activeer de service:" data-en="Step 4 — Save (Ctrl+O, Enter, Ctrl+X in nano) and enable the service:">Stap 4 — Sla op en activeer de service:</span>
+    </div>
+    <div class="code-block">systemctl --user daemon-reload
+systemctl --user enable --now backupmanager
+systemctl --user status backupmanager   # controleer of hij draait</div>
+
+    <div style="font-size:13px;color:var(--text2);margin:14px 0 8px">
+      <span data-nl="Service stoppen of herstarten:" data-en="Stop or restart the service:">Service stoppen of herstarten:</span>
+    </div>
+    <div class="code-block">systemctl --user stop backupmanager
+systemctl --user restart backupmanager</div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hdr"><div class="card-title" data-nl="Uitsluitingen — glob-patronen" data-en="Exclusions — glob patterns">Uitsluitingen — glob-patronen</div></div>
+    <div style="font-size:13px;color:var(--text2);line-height:2">
+      <span data-nl="In het veld 'Uitsluitingen' kun je glob-patronen opgeven. Voorbeelden:"
+            data-en="In the 'Exclusions' field you can specify glob patterns. Examples:">
+        In het veld 'Uitsluitingen' kun je glob-patronen opgeven. Voorbeelden:
+      </span>
+    </div>
+    <div class="code-block" style="margin-top:10px">*.tmp          → alle .tmp bestanden / all .tmp files
+*.log          → alle logbestanden / all log files
+.git           → de .git map / the .git directory
+node_modules   → de node_modules map
+__pycache__    → Python cache
+Thumbs.db      → Windows thumbnails
+/pad/naar/map  → specifieke submap / specific subfolder</div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><div class="card-title" data-nl="Configuratiebestanden" data-en="Configuration files">Configuratiebestanden</div></div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse">
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 0;color:var(--text2);width:160px" data-nl="Configuratie" data-en="Configuration">Configuratie</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">~/.config/backupmanager/config.json</td>
+      </tr>
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px 0;color:var(--text2)" data-nl="Standaard log" data-en="Default log">Standaard log</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">~/.local/share/backupmanager/backup.log</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;color:var(--text2)">API</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">http://127.0.0.1:7842</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- Result modal -->
+<div class="overlay" id="result-overlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="result-title">Resultaat</div>
+      <button class="modal-x" onclick="closeModal('result-overlay')">✕</button>
+    </div>
+    <div id="result-body"></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('result-overlay')"><span data-nl="Sluiten" data-en="Close">Sluiten</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:7842';
+let apiOnline = false;
+let editingJobId = null;
+let currentLang = 'nl';
+let currentTheme = 'dark';
+let _excludeTags = [];
+let _logText = '';
+
+// ── Language & Theme ────────────────────────────────────────
+function t(nl, en){ return currentLang === 'nl' ? nl : en; }
+
+function applyLang() {
+  document.querySelectorAll('[data-nl]').forEach(el => {
+    const v = el.getAttribute('data-' + currentLang);
+    if (v !== null) {
+      // Don't overwrite input placeholders this way — use separate data attrs
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return;
+      if (!el.children.length || el.classList.contains('badge') || el.classList.contains('preset-btn')) {
+        el.textContent = v;
+      }
+    }
+  });
+  // Update selects
+  document.querySelectorAll('select option[data-nl]').forEach(opt => {
+    opt.textContent = opt.getAttribute('data-' + currentLang);
+  });
+  document.getElementById('lang-btn').textContent = currentLang === 'nl' ? 'EN' : 'NL';
+  document.getElementById('f-name').placeholder = currentLang === 'nl' ? 'bijv. Documenten dagelijks' : 'e.g. Daily documents';
+  document.getElementById('f-source').placeholder = '/home/gebruiker/Documenten';
+  document.getElementById('f-dest').placeholder = '/mnt/backup';
+  document.getElementById('tag-input').placeholder = currentLang === 'nl'
+    ? '*.tmp, .git … Enter om toe te voegen'
+    : '*.tmp, .git … press Enter to add';
+  document.getElementById('log-search').placeholder = currentLang === 'nl' ? 'Zoeken…' : 'Search…';
+  updateCronPrev();
+}
+
+function toggleLang() {
+  currentLang = currentLang === 'nl' ? 'en' : 'nl';
+  applyLang();
+  savePref();
+}
+
+function setLanguage(lang) {
+  currentLang = lang;
+  applyLang();
+  savePref();
+  if (apiOnline) fetch(API+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:lang})});
+}
+
+function toggleTheme() {
+  setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+}
+
+function setTheme(t) {
+  currentTheme = t;
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('theme-btn').textContent = t === 'dark' ? '☀' : '🌙';
+  savePref();
+  if (apiOnline) fetch(API+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({theme:t})});
+}
+
+function savePref() {
+  localStorage.setItem('bm_lang', currentLang);
+  localStorage.setItem('bm_theme', currentTheme);
+}
+
+// ── Navigation ──────────────────────────────────────────────
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+  if (name === 'jobs')     loadJobs();
+  if (name === 'log')      loadLog();
+  if (name === 'settings') loadSettings();
+  if (name === 'new' && !editingJobId) { resetForm(); document.getElementById('new-title').setAttribute('data-' + currentLang, t('Nieuwe backup job','New backup job')); applyLang(); }
+}
+
+// ── API check ───────────────────────────────────────────────
+async function checkApi() {
+  try {
+    const r = await fetch(API+'/api/status', {signal: AbortSignal.timeout(2000)});
+    if (r.ok) {
+      apiOnline = true;
+      document.getElementById('api-dot').classList.add('on');
+      document.getElementById('api-txt').textContent = t('API verbonden · 7842','API connected · 7842');
+      document.getElementById('api-banner').style.display = 'none';
+      return true;
+    }
+  } catch {}
+  apiOnline = false;
+  document.getElementById('api-dot').classList.remove('on');
+  document.getElementById('api-txt').textContent = t('API niet bereikbaar','API not reachable');
+  document.getElementById('api-banner').style.display = 'flex';
+  return false;
+}
+
+// ── Jobs ────────────────────────────────────────────────────
+async function loadJobs() {
+  const list = document.getElementById('job-list');
+  if (!apiOnline) {
+    list.innerHTML = `<div class="banner info"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 7v5M8 5v.5"/></svg>${t('Demo-modus: start de Python server om echte jobs te beheren','Demo mode: start the Python server to manage real jobs')}</div>`;
+    return;
+  }
+  const r = await fetch(API+'/api/jobs').catch(()=>null);
+  if (!r) return;
+  const data = await r.json();
+  renderJobs(data.jobs, list);
+}
+
+function renderJobs(jobs, container) {
+  if (!jobs || !jobs.length) {
+    container.innerHTML = `<div class="empty"><div class="empty-icon">🗄</div><div class="empty-title">${t('Nog geen backup jobs','No backup jobs yet')}</div><div>${t("Klik op 'Nieuwe job' om te beginnen","Click 'New job' to get started")}</div></div>`;
+    return;
+  }
+  container.innerHTML = jobs.map(j => {
+    const s = j.schedule || {};
+    const cron = s.minute !== undefined ? `${s.minute} ${s.hour} ${s.day} ${s.month} ${s.weekday}` : t('geen schema','no schedule');
+    const lr = j.last_run ? new Date(j.last_run).toLocaleString(currentLang === 'nl' ? 'nl-NL' : 'en-GB') : t('nooit','never');
+    const excl = (j.excludes || []).length ? `<span class="job-meta-item">⊘ ${(j.excludes||[]).join(', ')}</span>` : '';
+    return `<div class="job-card ${j.enabled?'':'disabled'}">
+      <div>
+        <div class="job-name">${esc(j.name)}</div>
+        <div class="job-meta">
+          <span class="job-meta-item">📁 ${esc(j.source)}</span>
+          <span class="job-meta-item">→ ${esc(j.destination)}</span>
+          <span class="job-meta-item">🕒 ${esc(cron)}</span>
+          ${excl}
+          <span class="job-meta-item" style="color:var(--text3)">${t('laatste run','last run')}: ${lr}</span>
+        </div>
+      </div>
+      <div class="job-actions">
+        ${s.hour!==undefined?`<span class="badge badge-sch">${t('gepland','scheduled')}</span>`:''}
+        <span class="badge ${j.enabled?'badge-on':'badge-off'}">${j.enabled?t('actief','active'):t('uit','off')}</span>
+        <button class="btn sm success" onclick="runJob('${j.id}',false)">▶ ${t('Uitvoeren','Run')}</button>
+        <button class="btn sm" onclick="runJob('${j.id}',true)">⚙ ${t('Test-run','Test run')}</button>
+        <button class="btn sm" onclick="editJob('${j.id}')">✎ ${t('Bewerken','Edit')}</button>
+        <button class="btn sm danger" onclick="deleteJob('${j.id}','${esc(j.name)}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Run ─────────────────────────────────────────────────────
+async function runJob(id, dry) {
+  if (!apiOnline) return alert(t('Verbind eerst met de API server.','Connect to the API server first.'));
+  showResult(dry ? t('Test-run bezig…','Running test…') : t('Backup uitvoeren…','Running backup…'),
+    `<div style="color:var(--text2);text-align:center;padding:24px">${t('Bezig…','Please wait…')}</div>`);
+  const r = await fetch(`${API}/api/jobs/${id}/run`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dry_run:dry})}).catch(()=>null);
+  if (!r) return showResult(t('Fout','Error'), `<div style="color:var(--red)">${t('Kan job niet bereiken.','Cannot reach job.')}</div>`);
+  const res = await r.json();
+  showResult(dry ? `🔍 ${t('Test-run resultaat','Dry run result')}` : `✅ ${t('Backup klaar','Backup done')}`, renderResult(res, dry));
+  if (!dry) loadJobs();
+}
+
+function renderResult(res, dry) {
+  const lines = (res.log||[]).map(l => {
+    let cls='ll-skip';
+    if(/\[gekopieerd\]|\[copied\]/.test(l)) cls='ll-ok';
+    else if(/\[verwijderd\]|\[deleted\]/.test(l)) cls='ll-del';
+    else if(/\[FOUT\]|\[ERROR\]/.test(l)) cls='ll-err';
+    else if(/\[DRY-RUN\]/.test(l)) cls='ll-dry';
+    else if(/\[uitgesloten\]|\[excluded\]/.test(l)) cls='ll-warn';
+    return `<span class="${cls}">${esc(l)}</span>`;
+  }).join('\n');
+  return `<div class="result-grid">
+    <div class="rstat rg"><div class="rnum">${res.copied}</div><div class="rlbl">${dry?t('te kopiëren','to copy'):t('gekopieerd','copied')}</div></div>
+    <div class="rstat rs"><div class="rnum">${res.skipped}</div><div class="rlbl">${t('overgeslagen','skipped')}</div></div>
+    <div class="rstat ra"><div class="rnum">${res.deleted}</div><div class="rlbl">${dry?t('te verwijderen','to delete'):t('verwijderd','deleted')}</div></div>
+    <div class="rstat rr"><div class="rnum">${(res.errors||[]).length}</div><div class="rlbl">${t('fouten','errors')}</div></div>
+  </div>
+  ${dry?`<div style="font-size:12px;color:var(--purple);margin-bottom:10px">${t('Dit was een droogloop — geen bestanden gewijzigd.','This was a dry run — no files were changed.')}</div>`:''}
+  <div class="log-viewer" style="height:300px">${lines||t('(geen bestanden verwerkt)','(no files processed)')}</div>
+  ${(res.errors||[]).length?`<div style="margin-top:12px;color:var(--red);font-size:12px"><b>${t('Fouten','Errors')}:</b><br>${res.errors.map(esc).join('<br>')}</div>`:''}`;
+}
+
+// ── Save job ────────────────────────────────────────────────
+function collectForm() {
+  return {
+    name: document.getElementById('f-name').value.trim(),
+    source: document.getElementById('f-source').value.trim(),
+    destination: document.getElementById('f-dest').value.trim(),
+    on_missing: document.getElementById('f-missing').value,
+    on_duplicate: document.getElementById('f-duplicate').value,
+    excludes: [..._excludeTags],
+    schedule: { minute:document.getElementById('s-min').value, hour:document.getElementById('s-hr').value,
+                day:document.getElementById('s-day').value, month:document.getElementById('s-mo').value,
+                weekday:document.getElementById('s-wd').value },
+    enabled: document.getElementById('f-enabled').checked
+  };
+}
+
+async function saveJob() {
+  const job = collectForm();
+  if (!job.name||!job.source||!job.destination) return alert(t('Vul naam, bron en bestemming in.','Fill in name, source and destination.'));
+  if (!apiOnline) return alert(t('Verbind eerst met de API server.','Connect to the API server first.'));
+  const url  = editingJobId ? `${API}/api/jobs/${editingJobId}/update` : `${API}/api/jobs`;
+  const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(job)}).catch(()=>null);
+  if (r && r.ok) { editingJobId=null; resetForm(); showPage('jobs',document.querySelector('[data-page=jobs]')); }
+  else alert(t('Opslaan mislukt.','Save failed.'));
+}
+
+async function testRunNew() {
+  const job = collectForm();
+  if (!job.source||!job.destination) return alert(t('Vul bron en bestemming in.','Fill in source and destination.'));
+  if (!apiOnline) return alert(t('Verbind eerst met de API server.','Connect to the API server first.'));
+  const r = await fetch(`${API}/api/jobs`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...job,name:job.name||'test'})}).catch(()=>null);
+  if (!r||!r.ok) return;
+  const d = await r.json();
+  await runJob(d.job.id, true);
+  await fetch(`${API}/api/jobs/${d.job.id}`,{method:'DELETE'});
+}
+
+async function editJob(id) {
+  if (!apiOnline) return;
+  const r = await fetch(API+'/api/jobs');
+  const {jobs} = await r.json();
+  const job = jobs.find(j=>j.id===id);
+  if (!job) return;
+  editingJobId = id;
+  document.getElementById('f-name').value     = job.name;
+  document.getElementById('f-source').value   = job.source;
+  document.getElementById('f-dest').value     = job.destination;
+  document.getElementById('f-missing').value  = job.on_missing;
+  document.getElementById('f-duplicate').value= job.on_duplicate;
+  document.getElementById('f-enabled').checked= job.enabled;
+  _excludeTags = [...(job.excludes||[])];
+  renderTags();
+  const s = job.schedule||{};
+  document.getElementById('s-min').value = s.minute||'0';
+  document.getElementById('s-hr').value  = s.hour||'2';
+  document.getElementById('s-day').value = s.day||'*';
+  document.getElementById('s-mo').value  = s.month||'*';
+  document.getElementById('s-wd').value  = s.weekday||'*';
+  updateCronPrev();
+  document.getElementById('new-title').textContent = t('Job bewerken: ','Edit job: ') + job.name;
+  showPage('new', document.querySelector('[data-page=new]'));
+}
+
+async function deleteJob(id, name) {
+  if (!confirm(t(`Job "${name}" verwijderen?`,`Delete job "${name}"?`))) return;
+  await fetch(`${API}/api/jobs/${id}`,{method:'DELETE'});
+  loadJobs();
+}
+
+// ── Export / Import ─────────────────────────────────────────
+async function exportJobs() {
+  if (!apiOnline) return alert(t('Verbind eerst met de API server.','Connect to API server first.'));
+  const r = await fetch(API+'/api/export');
+  const data = await r.json();
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `backupmanager-export-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+async function importJobs(input) {
+  if (!apiOnline) { alert(t('Verbind eerst met de API server.','Connect to API server first.')); input.value=''; return; }
+  const file = input.files[0]; if (!file) return;
+  const text = await file.text();
+  let data;
+  try { data = JSON.parse(text); } catch { alert(t('Ongeldig JSON-bestand.','Invalid JSON file.')); return; }
+  const jobs = data.jobs || (Array.isArray(data) ? data : []);
+  const r = await fetch(API+'/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobs})});
+  const res = await r.json();
+  alert(t(`${res.imported} job(s) geïmporteerd.`,`${res.imported} job(s) imported.`));
+  input.value = '';
+  loadJobs();
+}
+
+// ── Log ─────────────────────────────────────────────────────
+async function loadLog() {
+  const el = document.getElementById('log-viewer');
+  if (!apiOnline) { el.textContent = t('Log beschikbaar zodra de API draait.','Log available once the API is running.'); return; }
+  const search = encodeURIComponent(document.getElementById('log-search').value);
+  const level  = document.getElementById('log-level').value;
+  const lines  = document.getElementById('log-lines').value;
+  const r = await fetch(`${API}/api/log?search=${search}&level=${level}&lines=${lines}`).catch(()=>null);
+  if (!r) return;
+  const data = await r.json();
+  _logText = data.log || '';
+  document.getElementById('log-path-sub').textContent = data.log_path || '';
+  document.getElementById('log-meta').textContent =
+    t(`${data.filtered_lines} van ${data.total_lines} regels`,
+      `${data.filtered_lines} of ${data.total_lines} lines`);
+  const colored = _logText.split('\n').map(l => {
+    let cls = 'll-skip';
+    if (/\[ERROR\]/.test(l))   cls = 'll-err';
+    else if (/\[WARNING\]/.test(l)) cls = 'll-warn';
+    else if (/\[INFO\]/.test(l))    cls = 'll-info';
+    if (/BACKUP DONE|BACKUP KLAAR|TEST-RUN|DRY-RUN/.test(l)) cls = 'll-ok';
+    return `<span class="${cls}">${esc(l)}</span>`;
+  }).join('\n');
+  el.innerHTML = colored || t('(log is leeg)','(log is empty)');
+  el.scrollTop = el.scrollHeight;
+}
+
+function saveLog() {
+  if (!_logText) return alert(t('Geen log om op te slaan.','No log to save.'));
+  const blob = new Blob([_logText], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `backupmanager-log-${new Date().toISOString().slice(0,10)}.log`;
+  a.click();
+}
+
+async function clearLog() {
+  if (!confirm(t('Log wissen? Dit kan niet ongedaan worden.','Clear log? This cannot be undone.'))) return;
+  await fetch(API+'/api/log/clear',{method:'POST'});
+  _logText = '';
+  loadLog();
+}
+
+// ── Settings ────────────────────────────────────────────────
+async function loadSettings() {
+  if (!apiOnline) return;
+  const r = await fetch(API+'/api/settings').catch(()=>null);
+  if (!r) return;
+  const {settings} = await r.json();
+  if (settings.log_path)    document.getElementById('s-logpath').value = settings.log_path;
+  if (settings.log_max_lines) document.getElementById('s-logmax').value = String(settings.log_max_lines);
+}
+
+async function saveSettings() {
+  if (!apiOnline) return alert(t('Verbind eerst met de API server.','Connect to API server first.'));
+  const payload = {
+    log_path: document.getElementById('s-logpath').value.trim() || undefined,
+    log_max_lines: parseInt(document.getElementById('s-logmax').value)
+  };
+  await fetch(API+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  alert(t('Instellingen opgeslagen.','Settings saved.'));
+}
+
+// ── Excludes tag input ──────────────────────────────────────
+function addTag(val) {
+  val = val.trim();
+  if (!val || _excludeTags.includes(val)) return;
+  _excludeTags.push(val);
+  renderTags();
+}
+
+function removeTag(i) {
+  _excludeTags.splice(i,1);
+  renderTags();
+}
+
+function renderTags() {
+  const wrap = document.getElementById('tag-wrap');
+  const inp  = document.getElementById('tag-input');
+  // Remove old tags (keep the input)
+  wrap.querySelectorAll('.tag').forEach(t => t.remove());
+  _excludeTags.forEach((tag,i) => {
+    const el = document.createElement('span');
+    el.className = 'tag';
+    el.innerHTML = `${esc(tag)}<span class="tag-x" onclick="removeTag(${i})">✕</span>`;
+    wrap.insertBefore(el, inp);
+  });
+}
+
+document.getElementById('tag-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    addTag(e.target.value);
+    e.target.value = '';
+  } else if (e.key === 'Backspace' && !e.target.value && _excludeTags.length) {
+    _excludeTags.pop();
+    renderTags();
+  }
+});
+
+// ── Schedule ────────────────────────────────────────────────
+function setSched(m,h,d,mo,wd) {
+  document.getElementById('s-min').value = m;
+  document.getElementById('s-hr').value  = h;
+  document.getElementById('s-day').value = d;
+  document.getElementById('s-mo').value  = mo;
+  document.getElementById('s-wd').value  = wd;
+  updateCronPrev();
+}
+
+function updateCronPrev() {
+  const m  = document.getElementById('s-min').value;
+  const h  = document.getElementById('s-hr').value;
+  const d  = document.getElementById('s-day').value;
+  const mo = document.getElementById('s-mo').value;
+  const wd = document.getElementById('s-wd').value;
+  document.getElementById('cron-prev').textContent = `${m} ${h} ${d} ${mo} ${wd}  →  ${descCron(m,h,d,mo,wd)}`;
+}
+
+function descCron(m,h,d,mo,wd) {
+  const NL = currentLang === 'nl';
+  if (m.startsWith('*/')) return NL?`elke ${m.slice(2)} minuten`:`every ${m.slice(2)} minutes`;
+  if (h.startsWith('*/')) return NL?`elke ${h.slice(2)} uur`:`every ${h.slice(2)} hours`;
+  const wdNL=['zo','ma','di','wo','do','vr','za'], wdEN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let parts=[];
+  if (wd!=='*') parts.push(NL?`elke ${wdNL[+wd]||wd}`:`every ${wdEN[+wd]||wd}`);
+  else if(d!=='*') parts.push(NL?`dag ${d} v/d maand`:`day ${d} of the month`);
+  else parts.push(NL?'elke dag':'every day');
+  if (mo!=='*') parts.push(NL?`in maand ${mo}`:`in month ${mo}`);
+  parts.push(NL?`om ${h.padStart(2,'0')}:${m.padStart(2,'0')}`:`at ${h.padStart(2,'0')}:${m.padStart(2,'0')}`);
+  return parts.join(' ');
+}
+
+['s-min','s-hr','s-day','s-mo','s-wd'].forEach(id=>document.getElementById(id).addEventListener('input',updateCronPrev));
+
+function resetForm() {
+  document.getElementById('f-name').value='';
+  document.getElementById('f-source').value='';
+  document.getElementById('f-dest').value='';
+  document.getElementById('f-missing').value='skip';
+  document.getElementById('f-duplicate').value='overwrite_if_newer';
+  document.getElementById('f-enabled').checked=true;
+  _excludeTags=[];
+  renderTags();
+  setSched('0','2','*','*','*');
+  editingJobId=null;
+}
+
+// ── Modals ───────────────────────────────────────────────────
+function showResult(title, body) {
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-body').innerHTML = body;
+  document.getElementById('result-overlay').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function setField(id,v){ document.getElementById(id).value=v; }
+function homeDir(){ return '/home/'+getUser(); }
+function getUser(){ return window.location.pathname.includes('home/') ? window.location.pathname.split('/home/')[1].split('/')[0] : 'mjeppo'; }
+
+// ── Init ──────────────────────────────────────────────────────
+(async()=>{
+  // Restore prefs
+  currentLang  = localStorage.getItem('bm_lang')  || 'nl';
+  currentTheme = localStorage.getItem('bm_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  document.getElementById('theme-btn').textContent = currentTheme === 'dark' ? '☀' : '🌙';
+
+  applyLang();
+  updateCronPrev();
+  await checkApi();
+  if (apiOnline) {
+    // Load server settings and sync lang/theme
+    const r = await fetch(API+'/api/settings').catch(()=>null);
+    if (r) {
+      const {settings} = await r.json();
+      if (settings.language && !localStorage.getItem('bm_lang')) setLanguage(settings.language);
+      if (settings.theme    && !localStorage.getItem('bm_theme')) setTheme(settings.theme);
+      if (settings.log_path) document.getElementById('s-logpath').value = settings.log_path;
+    }
+  }
+  loadJobs();
+  setInterval(checkApi, 15000);
+})();
+</script>
+</body>
+</html>
