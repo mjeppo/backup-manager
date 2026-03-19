@@ -700,6 +700,7 @@ function toggleLang() {
   currentLang = currentLang === 'nl' ? 'en' : 'nl';
   applyLang();
   savePref();
+  loadJobs();
 }
 
 function setLanguage(lang) {
